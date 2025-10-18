@@ -1,4 +1,5 @@
 import argparse, io, sys, time, math
+import json
 import pandas as pd, numpy as np, requests as rq
 from datetime import datetime
 
@@ -23,7 +24,7 @@ def fetch_wb_indicator(ind, start_year=2019, end_year=None):
     while True:
         url = f"{WB_BASE}/country/all/indicator/{ind}?date={start_year}:{end_year}&format=json&per_page={per_page}&page={page}"
         text = http_get_text(url, tries=5, timeout=60)  # <- uses the retry helper
-        data = rq.utils.json.loads(text)
+        data = json.loads(text)
         if not isinstance(data, list) or len(data) < 2 or data[1] is None:
             break
         meta, items = data[0], data[1]
