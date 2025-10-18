@@ -2,7 +2,8 @@ import argparse, io, sys, time, math
 import pandas as pd, numpy as np, requests as rq
 from datetime import datetime
 
-OWID_URL = "https://covid.ourworldindata.org/data/owid-covid-data.csv"  # doc: docs.owid.io
+OWID_URL_PRIMARY = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
+OWID_URL_MIRROR  = "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv"
 WB_BASE = "https://api.worldbank.org/v2"
 
 WB_SERIES = {
@@ -14,18 +15,15 @@ WB_SERIES = {
     "SL.UEM.TOTL.ZS": "unemployment_total_pct",
 }
 
-NON_COUNTRY_ISO3 = {"WLD","EUN","EUU","OED","HIC","LMY","LIC","MIC","LMC","UMC","SSA","EAP","ECA","MNA","NAC","SAS","LCN","MEA"}  # aggregates
+NON_COUNTRY_ISO3 = {"WLD","EUN","EUU","OED","HIC","LMY","LIC","MIC","LMC","UMC","SSA","EAP","ECA","MNA","NAC","SAS","LCN","MEA"}
 
 def fetch_wb_indicator(ind, start_year=2019, end_year=None):
     end_year = end_year or datetime.utcnow().year
-    per_page = 20000
-    page = 1
-    rows = []
+    per_page, page, rows = 20000, 1, []
     while True:
         url = f"{WB_BASE}/country/all/indicator/{ind}?date={start_year}:{end_year}&format=json&per_page={per_page}&page={page}"
-        r = rq.get(url, timeout=60)
-        r.raise_for_status()
-        data = r.json()
+        text = http_get_text(url, tries=5, timeout=60)  # <- uses the retry helper
+        data = rq.utils.json.loads(text)
         if not isinstance(data, list) or len(data) < 2 or data[1] is None:
             break
         meta, items = data[0], data[1]
@@ -35,18 +33,12 @@ def fetch_wb_indicator(ind, start_year=2019, end_year=None):
                 continue
             if it.get("value") is None: 
                 continue
-            rows.append({
-                "iso3": iso3,
-                "year": int(it["date"]),
-                "indicator": ind,
-                "value": it["value"],
-            })
-        if meta.get("page") * meta.get("pages", 1) >= meta.get("pages", 1):
-            if page >= meta.get("pages", 1):
-                break
+            rows.append({"iso3": iso3, "year": int(it["date"]), "indicator": ind, "value": it["value"]})
+        # paging
+        if page >= meta.get("pages", 1):
+            break
         page += 1
-    df = pd.DataFrame(rows)
-    return df
+    return pd.DataFrame(rows)
 
 def fetch_worldbank(start_year=2019):
     frames = []
@@ -60,21 +52,47 @@ def fetch_worldbank(start_year=2019):
     out = pd.concat(frames, ignore_index=True)
     return out
 
+def http_get_text(url, tries=5, timeout=60, backoff=2.0):
+    """GET text with retries/backoff and a friendly User-Agent."""
+    sess = rq.Session()
+    headers = {
+        "User-Agent": "chsmithiii-data-fetch/1.0 (+https://github.com/chsmithiii)",
+        "Accept": "text/csv,application/json;q=0.9,*/*;q=0.8",
+    }
+    last = None
+    for attempt in range(1, tries + 1):
+        try:
+            resp = sess.get(url, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            last = e
+            if attempt < tries:
+                time.sleep(backoff ** attempt)
+    raise last
+
 def fetch_owid_covid():
-    # daily CSV (wide dataset) — we subset useful columns
-    df = pd.read_csv(OWID_URL, parse_dates=["date"])
-    keep = [
-        "iso_code","location","date",
-        "new_cases","new_deaths",
-        "total_cases","total_deaths",
-        "new_vaccinations","people_vaccinated","people_fully_vaccinated",
-        "population"
-    ]
-    present = [c for c in keep if c in df.columns]
-    df = df[present]
-    # filter to country ISO-3 (skip OWID_* aggregates)
-    df = df[df["iso_code"].str.len()==3].copy()
-    return df
+    # Try primary, then mirror
+    last_err = None
+    for url in (OWID_URL_PRIMARY, OWID_URL_MIRROR):
+        try:
+            text = http_get_text(url, tries=5, timeout=90)
+            df = pd.read_csv(io.StringIO(text), parse_dates=["date"])
+            # filter to ISO-3 (skip OWID_* aggregates)
+            df = df[df["iso_code"].str.len() == 3].copy()
+            keep = [
+                "iso_code","location","date",
+                "new_cases","new_deaths",
+                "total_cases","total_deaths",
+                "new_vaccinations","people_vaccinated","people_fully_vaccinated",
+                "population",
+            ]
+            present = [c for c in keep if c in df.columns]
+            return df[present]
+        except Exception as e:
+            last_err = e
+    # If both fail, surface the last error so the workflow logs are clear
+    raise last_err
 
 def monthly_from_daily(df):
     # sum flows (new_*) and take last for stocks (total_*, people_*)
