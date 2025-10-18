@@ -1,15 +1,23 @@
-# Python
+# Python cache / venv / notebooks
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 ENV/
 .ipynb_checkpoints
-# OS/Editors
+
+# Editors / OS
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-# Outputs
-data/
-!data/.gitkeep
+
+# Data: ignore everything under /data ...
+data/**
+# ... except keep the directory itself and any CSVs (incl. subfolders)
+!data/
+!data/*.csv
+!data/**/*.csv
+
+# If you want to exclude the very large daily file, uncomment the next line:
+# data/owid_covid_daily.csv
