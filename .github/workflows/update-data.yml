@@ -1,0 +1,31 @@
+name: update-data
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"   # Every Monday 07:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - run: mkdir -p data
+      - run: python src/fetch_and_build.py --start-year 2019
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add data/*.csv README_DATA_SOURCES.md
+            git commit -m "Update data (auto)"
+            git push
+          else
+            echo "No changes."
+          fi
