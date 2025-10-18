@@ -1,0 +1,7 @@
+{
+  "name": "py311",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" }
+  },
+  "postCreateCommand": "python -m pip install --upgrade pip && pip install -r requirements.txt || true"
+}
