@@ -1,6 +1,4 @@
-# COVID & Economic Indicators by Country (2019 → present) [![Data update](https://github.com/chsmithiii/COVID_and_Econ_Indicators_by_Country/actions/workflows/update-data.yml/badge.svg)](./.github/workflows/update-data.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
-
+# COVID & Economic Indicators by Country (2019 → present) [![Data update](https://github.com/chsmithiii/COVID_and_Econ_Indicators_by_Country/actions/workflows/update-data.yml/badge.svg)](./.github/workflows/update-data.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 This repo builds a tidy panel combining **COVID-19** daily metrics with **annual macro indicators** (GINI, PPP, GDP per capita PPP, inflation, unemployment) for all countries, 2019–present.
 
 ## Data sources
